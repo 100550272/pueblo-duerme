@@ -176,7 +176,6 @@
                 document.getElementById('panel-vision').classList.add('hidden');
             }
 
-            // Ocultar panel de amor en el lobby por defecto
             if (p.estado === 'lobby') {
                 document.getElementById('panel-amor').classList.add('hidden');
             }
@@ -194,7 +193,6 @@
                     msgAmor.innerText = `❤️ Estás enamorado de: ${nombrePareja}`;
                     msgAmor.classList.remove('hidden');
 
-                    // Mostrar el nuevo panel rosa gigante si la partida está activa o finalizada
                     document.getElementById('texto-amor').innerText = `Tu destino está unido al de ${nombrePareja}. Si tu pareja muere, tú morirás de tristeza.`;
                     document.getElementById('panel-amor').classList.remove('hidden');
                 } else {
@@ -222,22 +220,29 @@
                     document.getElementById('btn-reiniciar').classList.remove('hidden');
                 }
             }
-            else if (yo && yo.vivo) {
-                if (p.estado === 'dia') { esMiTurno = true; mensajeTurno = "☀️ Votación pública: Selecciona a quién linchar."; }
-                else if (p.estado === 'noche_cupido' && miRol === 'Cupido') { esMiTurno = true; mensajeTurno = "🏹 Cupido: Selecciona a 2 jugadores para enamorar."; document.getElementById('btn-accion').classList.remove('hidden'); }
-                else if (p.estado === 'noche_vidente' && miRol === 'Vidente') { esMiTurno = true; mensajeTurno = "👁️ Vidente: Selecciona a quién investigar."; }
-                else if (p.estado === 'noche_lobos' && miRol === 'Lobo') { esMiTurno = true; mensajeTurno = "🐺 Lobo: Selecciona a quién devorar."; }
-                else if (p.estado === 'noche_bruja' && miRol === 'Bruja') {
-                    esMiTurno = true;
-                    mensajeTurno = "🔮 Bruja: Usa tus pociones sabiamente.";
-                    document.getElementById('panel-bruja').classList.remove('hidden');
-                    const victima = p.jugadores.find(j => j.id === p.victimaLobos);
-                    document.getElementById('info-victima').innerHTML = `Víctima de los lobos: <span class="font-bold text-red-400">${victima ? victima.nombre : 'Nadie'}</span>`;
-                    document.getElementById('bruja-curar').disabled = !p.brujaPociones.vida || !victima;
-                    document.getElementById('bruja-curar').checked = false;
-                    document.getElementById('btn-accion').classList.remove('hidden');
+            else if (yo) {
+                // CORRECCIÓN: El cazador dispara estando MUERTO, por lo que su comprobación va fuera del yo.vivo
+                if (p.estado === 'venganza_cazador' && p.cazadorVengando === miId) { 
+                    esMiTurno = true; 
+                    mensajeTurno = "🏹 Cazador: Selecciona a quién llevarte a la tumba."; 
                 }
-                else if (p.estado === 'venganza_cazador' && p.cazadorVengando === miId) { esMiTurno = true; mensajeTurno = "🏹 Cazador: Selecciona a quién llevarte a la tumba."; }
+                // El resto de roles actúan estando VIVOS
+                else if (yo.vivo) {
+                    if (p.estado === 'dia') { esMiTurno = true; mensajeTurno = "☀️ Votación pública: Selecciona a quién linchar."; }
+                    else if (p.estado === 'noche_cupido' && miRol === 'Cupido') { esMiTurno = true; mensajeTurno = "🏹 Cupido: Selecciona a 2 jugadores para enamorar."; document.getElementById('btn-accion').classList.remove('hidden'); }
+                    else if (p.estado === 'noche_vidente' && miRol === 'Vidente') { esMiTurno = true; mensajeTurno = "👁️ Vidente: Selecciona a quién investigar."; }
+                    else if (p.estado === 'noche_lobos' && miRol === 'Lobo') { esMiTurno = true; mensajeTurno = "🐺 Lobo: Selecciona a quién devorar."; }
+                    else if (p.estado === 'noche_bruja' && miRol === 'Bruja') {
+                        esMiTurno = true;
+                        mensajeTurno = "🔮 Bruja: Usa tus pociones sabiamente.";
+                        document.getElementById('panel-bruja').classList.remove('hidden');
+                        const victima = p.jugadores.find(j => j.id === p.victimaLobos);
+                        document.getElementById('info-victima').innerHTML = `Víctima de los lobos: <span class="font-bold text-red-400">${victima ? victima.nombre : 'Nadie'}</span>`;
+                        document.getElementById('bruja-curar').disabled = !p.brujaPociones.vida || !victima;
+                        document.getElementById('bruja-curar').checked = false;
+                        document.getElementById('btn-accion').classList.remove('hidden');
+                    }
+                }
 
                 if (esMiTurno) {
                     const alerta = document.getElementById('alerta-mi-turno');
