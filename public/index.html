@@ -58,8 +58,15 @@
             <button id="btn-reiniciar" onclick="reiniciarPartida()" class="bg-black text-white px-8 py-3 rounded font-bold w-full hidden hover:bg-gray-800">Volver al Lobby (Nueva Partida)</button>
         </div>
 
+        <!-- Panel de Visión de la Vidente -->
+        <div id="panel-vision" class="w-full bg-blue-900 text-white p-4 rounded mb-4 hidden border-2 border-blue-400 shadow-lg text-center">
+            <h3 class="font-bold text-lg mb-2">👁️ Visión Revelada</h3>
+            <p id="texto-vision" class="text-xl font-bold text-yellow-300"></p>
+            <button onclick="document.getElementById('panel-vision').classList.add('hidden')" class="mt-4 bg-blue-700 hover:bg-blue-500 text-white px-6 py-2 rounded font-bold shadow">Entendido</button>
+        </div>
+
         <!-- Controles Especiales de Bruja -->
-        <div id="panel-bruja" class="w-full bg-purple-900 text-white p-4 rounded mb-4 hidden border-2 border-purple-500">
+        <div id="panel-bruja" class="w-full bg-purple-900 text-white p-4 rounded mb-4 hidden border-2 border-purple-500 shadow-lg">
             <h3 class="font-bold text-lg mb-2">🔮 Turno de la Bruja</h3>
             <p id="info-victima" class="mb-4">Los lobos han atacado a: <span class="font-bold text-red-400">Nadie</span></p>
             <label class="block mb-2"><input type="checkbox" id="bruja-curar" class="mr-2 w-5 h-5"> Usar Poción de VIDA</label>
@@ -137,7 +144,11 @@
             seleccionados = [];
         }
 
-        socket.on('mensajePrivado', (msg) => alert(msg));
+        // NUEVO: El mensaje privado ahora muestra el panel azul en vez del pop-up
+        socket.on('mensajePrivado', (msg) => {
+            document.getElementById('texto-vision').innerText = msg;
+            document.getElementById('panel-vision').classList.remove('hidden');
+        });
 
         socket.on('actualizarEstado', (p) => {
             partidaActual = p;
@@ -155,6 +166,11 @@
             mSys.innerHTML = '';
             p.mensajes.forEach(m => { let p = document.createElement('p'); p.innerText = m; mSys.appendChild(p); });
             if(p.mensajes.length === 0) mSys.innerText = "Esperando a otros jugadores...";
+
+            // Auto-ocultar la visión de la vidente al amanecer o al reiniciar
+            if (p.estado === 'dia' || p.estado === 'lobby' || p.estado === 'fin') {
+                document.getElementById('panel-vision').classList.add('hidden');
+            }
 
             if (yo) {
                 miRol = yo.rol;
@@ -225,7 +241,7 @@
                 if (esMiTurno && j.vivo) {
                     let puedeSeleccionar = true;
                     if (p.estado === 'dia' && j.id === miId) puedeSeleccionar = false;
-                    if (p.estado === 'noche_lobos' && j.rol === 'Lobo') puedeSeleccionar = false; // Los lobos no pueden votarse a sí mismos ni a otros lobos
+                    if (p.estado === 'noche_lobos' && j.rol === 'Lobo') puedeSeleccionar = false; 
                     
                     if (puedeSeleccionar) {
                         div.classList.add('cursor-pointer', 'hover:bg-blue-100');
