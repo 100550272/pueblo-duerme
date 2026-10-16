@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pueblo Duerme - NUEVO</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .noche { background-color: #111827; color: #e5e7eb; }
+        .dia { background-color: #f3f4f6; color: #1f2937; }
+        .venganza { background-color: #7f1d1d; color: #fee2e2; }
+        .muerto { opacity: 0.5; pointer-events: none; filter: grayscale(100%); }
+        .seleccionado { outline: 4px solid #3b82f6; }
+    </style>
+</head>
+<body class="dia min-h-screen flex flex-col items-center p-4 font-sans transition-colors duration-1000">
+
+    <div id="pantalla-login" class="w-full max-w-md bg-white p-8 rounded shadow text-gray-800">
+        <h1 class="text-3xl font-bold mb-6 text-center">Pueblo Duerme - NUEVO</h1>
+        <input type="text" id="input-nombre" placeholder="Tu nombre..." class="w-full p-3 border rounded mb-4">
+        <button onclick="unirse()" class="w-full bg-blue-600 text-white p-3 rounded font-bold">Entrar</button>
+    </div>
+
+    <div id="pantalla-juego" class="w-full max-w-3xl hidden flex-col items-center">
+        <!-- Info del Jugador -->
+        <div class="flex flex-col w-full bg-gray-800 text-white p-4 rounded mb-4 text-center">
+            <span id="info-rol" class="text-xl font-bold text-yellow-400">Esperando...</span>
+            <span id="info-amor" class="text-sm text-pink-400 font-bold hidden mt-1"></span>
+        </div>
+
+        <!-- Panel de Mensajes Globales -->
+        <div id="mensajes-sistema" class="w-full bg-white bg-opacity-20 p-4 rounded mb-4 text-center font-semibold text-lg flex flex-col gap-2"></div>
+
+        <!-- Panel de Administrador -->
+        <div id="panel-admin" class="w-full bg-gray-200 text-black p-4 rounded mb-4 hidden">
+            <h2 class="font-bold mb-2">Configuración (Admin)</h2>
+            <div class="grid grid-cols-2 md:grid-cols-5 gap-2 text-sm items-center">
+                <label>Lobos: <input type="number" id="c-lobos" value="1" min="1" max="4" class="w-10 border"></label>
+                <label><input type="checkbox" id="c-cupido" checked> Cupido</label>
+                <label><input type="checkbox" id="c-vidente" checked> Vidente</label>
+                <label><input type="checkbox" id="c-bruja" checked> Bruja</label>
+                <label><input type="checkbox" id="c-cazador" checked> Cazador</label>
+            </div>
+            <button onclick="empezarPartida()" class="mt-4 bg-red-600 text-white px-4 py-2 rounded font-bold w-full">Comenzar Partida</button>
+        </div>
+
+        <!-- Controles Especiales de Bruja -->
+        <div id="panel-bruja" class="w-full bg-purple-900 text-white p-4 rounded mb-4 hidden border-2 border-purple-500">
+            <h3 class="font-bold text-lg mb-2">🔮 Turno de la Bruja</h3>
+            <p id="info-victima" class="mb-4">Los lobos han atacado a: <span class="font-bold text-red-400">Nadie</span></p>
+            <label class="block mb-2"><input type="checkbox" id="bruja-curar" class="mr-2 w-5 h-5"> Usar Poción de VIDA</label>
+            <p class="text-sm mt-4 text-gray-300">Para usar la poción de MUERTE, selecciona a un jugador abajo.</p>
+        </div>
+
+        <!-- Lista de Jugadores -->
+        <div id="lista-jugadores" class="grid grid-cols-2 md:grid-cols-4 gap-4 w-full"></div>
+        
+        <button id="btn-accion" onclick="confirmarAccion()" class="mt-6 bg-green-600 text-white px-8 py-3 rounded font-bold text-xl hidden w-full shadow-lg">Confirmar</button>
+    </div>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+        const socket = io();
+        let miId = null, miRol = null, estadoActual = 'lobby', seleccionados = [];
+        let partidaActual = null;
+
+        socket.on('connect', () => miId = socket.id);
+
+        function unirse() {
+            socket.emit('unirse', document.getElementById('input-nombre').value);
+            document.getElementById('pantalla-login').classList.add('hidden');
+            document.getElementById('pantalla-juego').classList.remove('hidden');
+        }
+
+        function empezarPartida() {
+            socket.emit('empezarPartida', {
+                lobos: parseInt(document.getElementById('c-lobos').value),
+                cupido: document.getElementById('c-cupido').checked,
+                vidente: document.getElementById('c-vidente').checked,
+                bruja: document.getElementById('c-bruja').checked,
+                cazador: document.getElementById('c-cazador').checked
+            });
+        }
+
+        function toggleJugador(id) {
+            const maxSel = (estadoActual === 'noche_cupido' && miRol === 'Cupido') ? 2 : 1;
+            
+            if (seleccionados.includes(id)) {
+                seleccionados = seleccionados.filter(x => x !== id);
+                document.getElementById('card-' + id).classList.remove('seleccionado');
+            } else {
+                if (seleccionados.length >= maxSel) {
+                    const primero = seleccionados.shift();
+                    document.getElementById('card-' + primero).classList.remove('seleccionado');
+                }
+                seleccionados.push(id);
+                document.getElementById('card-' + id).classList.add('seleccionado');
+            }
+            
+            document.getElementById('btn-accion').classList.remove('hidden');
+        }
+
+        function confirmarAccion() {
+            if (estadoActual === 'dia') socket.emit('votarDia', seleccionados[0]);
+            else if (estadoActual === 'venganza_cazador') socket.emit('accionCazador', seleccionados[0]);
+            else if (estadoActual === 'noche_cupido') socket.emit('accionCupido', seleccionados);
+            else if (estadoActual === 'noche_vidente') socket.emit('accionVidente', seleccionados[0]);
+            else if (estadoActual === 'noche_lobos') socket.emit('accionLobos', seleccionados[0]);
+            else if (estadoActual === 'noche_bruja') {
+                socket.emit('accionBruja', {
+                    curar: document.getElementById('bruja-curar').checked,
+                    matar: seleccionados.length > 0 ? seleccionados[0] : null
+                });
+            }
+
+            document.getElementById('btn-accion').classList.add('hidden');
+            document.getElementById('panel-bruja').classList.add('hidden');
+            seleccionados = [];
+        }
+
+        socket.on('mensajePrivado', (msg) => alert(msg));
+
+        socket.on('actualizarEstado', (p) => {
+            partidaActual = p;
+            estadoActual = p.estado;
+            const yo = p.jugadores.find(j => j.id === miId);
+            
+            document.body.className = (p.estado.includes('noche') ? 'noche' : (p.estado === 'venganza_cazador' ? 'venganza' : 'dia')) + ' min-h-screen flex flex-col items-center p-4 font-sans transition-colors duration-1000';
+            
+            const mSys = document.getElementById('mensajes-sistema');
+            mSys.innerHTML = '';
+            p.mensajes.forEach(m => { let p = document.createElement('p'); p.innerText = m; mSys.appendChild(p); });
+            if(p.mensajes.length === 0) mSys.innerText = "Esperando a otros jugadores...";
+
+            if (yo) {
+                miRol = yo.rol;
+                document.getElementById('info-rol').innerText = `Tu rol: ${miRol} | ${yo.vivo ? 'VIVO' : 'MUERTO'}`;
+                
+                const msgAmor = document.getElementById('info-amor');
+                if (p.enamorados.includes(miId)) {
+                    const parejaId = p.enamorados.find(id => id !== miId);
+                    const pareja = p.jugadores.find(j => j.id === parejaId);
+                    msgAmor.innerText = `❤️ Estás enamorado de: ${pareja ? pareja.nombre : 'Alguien'}`;
+                    msgAmor.classList.remove('hidden');
+                }
+            }
+
+            document.getElementById('panel-admin').classList.add('hidden');
+            document.getElementById('panel-bruja').classList.add('hidden');
+            document.getElementById('btn-accion').classList.add('hidden');
+
+            let esMiTurno = false;
+            if (p.estado === 'lobby' && p.jugadores[0]?.id === miId) document.getElementById('panel-admin').classList.remove('hidden');
+            else if (yo && yo.vivo) {
+                if (p.estado === 'dia') esMiTurno = true;
+                else if (p.estado === 'noche_cupido' && miRol === 'Cupido') { esMiTurno = true; document.getElementById('btn-accion').classList.remove('hidden'); }
+                else if (p.estado === 'noche_vidente' && miRol === 'Vidente') esMiTurno = true;
+                else if (p.estado === 'noche_lobos' && miRol === 'Lobo') esMiTurno = true;
+                else if (p.estado === 'noche_bruja' && miRol === 'Bruja') {
+                    esMiTurno = true;
+                    document.getElementById('panel-bruja').classList.remove('hidden');
+                    const victima = p.jugadores.find(j => j.id === p.victimaLobos);
+                    document.getElementById('info-victima').innerHTML = `Víctima de los lobos: <span class="font-bold text-red-400">${victima ? victima.nombre : 'Nadie'}</span>`;
+                    document.getElementById('bruja-curar').disabled = !p.brujaPociones.vida || !victima;
+                    document.getElementById('bruja-curar').checked = false;
+                    document.getElementById('btn-accion').classList.remove('hidden');
+                }
+                else if (p.estado === 'venganza_cazador' && p.cazadorVengando === miId) esMiTurno = true;
+            }
+
+            const contenedor = document.getElementById('lista-jugadores');
+            contenedor.innerHTML = '';
+            p.jugadores.forEach(j => {
+                const div = document.createElement('div');
+                div.id = 'card-' + j.id;
+                div.className = `p-4 bg-white text-black border rounded shadow text-center font-bold transition-all ${!j.vivo ? 'muerto bg-gray-300' : ''}`;
+                div.innerText = j.nombre + (j.id === miId ? ' (Tú)' : '');
+                
+                if (esMiTurno && j.vivo) {
+                    let puedeSeleccionar = true;
+                    if (p.estado === 'dia' && j.id === miId) puedeSeleccionar = false;
+                    if (p.estado === 'noche_lobos' && j.rol === 'Lobo') puedeSeleccionar = false;
+                    
+                    if (puedeSeleccionar) {
+                        div.classList.add('cursor-pointer', 'hover:bg-blue-100');
+                        div.onclick = () => toggleJugador(j.id);
+                    }
+                }
+                contenedor.appendChild(div);
+            });
+        });
+    </script>
+</body>
+</html>
