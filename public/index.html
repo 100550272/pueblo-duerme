@@ -11,7 +11,7 @@
         .venganza { background-color: #7f1d1d; color: #fee2e2; }
         .fin { background-color: #1e3a8a; color: #ffffff; }
         
-        /* NUEVO: Fondos inmersivos por rol */
+        /* Fondos inmersivos por rol */
         .fondo-lobo { background-color: #450a0a; color: #fee2e2; }
         .fondo-vidente { background-color: #3b0764; color: #f3e8ff; }
         .fondo-bruja { background-color: #431407; color: #ffedd5; }
@@ -42,13 +42,13 @@
         <!-- Panel de Mensajes Globales -->
         <div id="mensajes-sistema" class="w-full bg-white bg-opacity-20 p-4 rounded mb-4 text-center font-semibold text-lg flex flex-col gap-2"></div>
 
-        <!-- NUEVO: Panel de Espera (Para saber de quién es el turno) -->
+        <!-- Panel de Espera (Para saber de quién es el turno) -->
         <div id="panel-espera" class="w-full bg-blue-900 text-white p-4 rounded mb-4 hidden border-2 border-blue-500 shadow-lg text-center">
             <h3 class="font-bold text-lg mb-2">⏳ Turno en curso</h3>
             <p id="texto-espera" class="text-lg font-semibold text-blue-200"></p>
         </div>
 
-        <!-- Banner de Turno Activo (Ahora cambia de color) -->
+        <!-- Banner de Turno Activo -->
         <div id="alerta-mi-turno" class="hidden"></div>
 
         <!-- Panel de Administrador (Lobby) -->
@@ -70,6 +70,12 @@
             <button id="btn-reiniciar" onclick="reiniciarPartida()" class="bg-black text-white px-8 py-3 rounded font-bold w-full hidden hover:bg-gray-800">Volver al Lobby (Nueva Partida)</button>
         </div>
 
+        <!-- NUEVO: Panel de Muerte -->
+        <div id="panel-muerto" class="w-full bg-red-900 text-white p-4 rounded mb-4 hidden border-2 border-red-500 shadow-lg text-center">
+            <h3 class="font-bold text-xl mb-2 text-red-200">💀 Has muerto</h3>
+            <p class="text-md">Ya no puedes hablar ni participar, pero puedes seguir observando el destino del pueblo en silencio.</p>
+        </div>
+
         <!-- Panel de Visión de la Vidente -->
         <div id="panel-vision" class="w-full bg-blue-900 text-white p-4 rounded mb-4 hidden border-2 border-blue-400 shadow-lg text-center">
             <h3 class="font-bold text-lg mb-2">👁️ Visión Revelada</h3>
@@ -84,11 +90,11 @@
         </div>
 
         <!-- Controles Especiales de Bruja -->
-        <div id="panel-bruja" class="w-full bg-purple-900 text-white p-4 rounded mb-4 hidden border-2 border-purple-500 shadow-lg">
+        <div id="panel-bruja" class="w-full bg-orange-900 text-white p-4 rounded mb-4 hidden border-2 border-orange-500 shadow-lg">
             <h3 class="font-bold text-lg mb-2">🔮 Turno de la Bruja</h3>
             <p id="info-victima" class="mb-4">Los lobos han atacado a: <span class="font-bold text-red-400">Nadie</span></p>
             <label class="block mb-2"><input type="checkbox" id="bruja-curar" class="mr-2 w-5 h-5"> Usar Poción de VIDA</label>
-            <p class="text-sm mt-4 text-gray-300">Para usar la poción de MUERTE, selecciona a un jugador abajo.</p>
+            <p class="text-sm mt-4 text-orange-200">Para usar la poción de MUERTE, selecciona a un jugador abajo.</p>
         </div>
 
         <!-- Lista de Jugadores -->
@@ -182,7 +188,7 @@
             p.mensajes.forEach(m => { let p = document.createElement('p'); p.innerText = m; mSys.appendChild(p); });
             if(p.mensajes.length === 0) mSys.innerText = "Esperando a otros jugadores...";
 
-            // Resetear visibilidad de paneles secundarios
+            // Resetear visibilidad de paneles
             if (p.estado === 'dia' || p.estado === 'lobby' || p.estado === 'fin') {
                 document.getElementById('panel-vision').classList.add('hidden');
             }
@@ -190,10 +196,25 @@
                 document.getElementById('panel-amor').classList.add('hidden');
             }
 
+            document.getElementById('panel-admin').classList.add('hidden');
+            document.getElementById('panel-bruja').classList.add('hidden');
+            document.getElementById('panel-fin').classList.add('hidden');
+            document.getElementById('btn-reiniciar').classList.add('hidden');
+            document.getElementById('btn-accion').classList.add('hidden');
+            document.getElementById('alerta-mi-turno').classList.add('hidden');
+            document.getElementById('panel-espera').classList.add('hidden');
+            document.getElementById('panel-muerto').classList.add('hidden');
+
             if (yo) {
                 miRol = yo.rol;
                 document.getElementById('info-rol').innerText = `Tu rol: ${miRol} | ${yo.vivo ? 'VIVO' : 'MUERTO'}`;
                 
+                // Panel de muerte
+                if (!yo.vivo && p.estado !== 'lobby' && p.estado !== 'fin') {
+                    document.getElementById('panel-muerto').classList.remove('hidden');
+                }
+
+                // Panel de amor
                 const msgAmor = document.getElementById('info-amor');
                 if (p.enamorados.includes(miId) && p.estado !== 'lobby') {
                     const parejaId = p.enamorados.find(id => id !== miId);
@@ -207,17 +228,8 @@
                     document.getElementById('panel-amor').classList.remove('hidden');
                 } else {
                     msgAmor.classList.add('hidden');
-                    document.getElementById('panel-amor').classList.add('hidden');
                 }
             }
-
-            document.getElementById('panel-admin').classList.add('hidden');
-            document.getElementById('panel-bruja').classList.add('hidden');
-            document.getElementById('panel-fin').classList.add('hidden');
-            document.getElementById('btn-reiniciar').classList.add('hidden');
-            document.getElementById('btn-accion').classList.add('hidden');
-            document.getElementById('alerta-mi-turno').classList.add('hidden');
-            document.getElementById('panel-espera').classList.add('hidden');
 
             let esMiTurno = false;
             let mensajeTurno = "¡ES TU TURNO!";
@@ -292,13 +304,11 @@
                     alerta.className = `w-full font-bold text-xl p-4 rounded mb-4 text-center alerta-turno shadow-lg border-4 ${claseBanner}`;
                     alerta.classList.remove('hidden');
                 } else if (textoEspera && p.estado !== 'lobby' && p.estado !== 'fin' && p.estado !== 'dia') {
-                    // Si no es mi turno, pero alguien está actuando, muestro el cartel informativo azul
                     document.getElementById('texto-espera').innerText = textoEspera;
                     document.getElementById('panel-espera').classList.remove('hidden');
                 }
             }
 
-            // Aplicar el fondo especial de rol solo al jugador activo
             if (fondoEspecial && esMiTurno) {
                 document.body.className = fondoEspecial + ' min-h-screen flex flex-col items-center p-4 font-sans transition-colors duration-1000';
             } else {
