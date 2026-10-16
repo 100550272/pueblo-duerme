@@ -10,6 +10,14 @@
         .dia { background-color: #f3f4f6; color: #1f2937; }
         .venganza { background-color: #7f1d1d; color: #fee2e2; }
         .fin { background-color: #1e3a8a; color: #ffffff; }
+        
+        /* NUEVO: Fondos inmersivos por rol */
+        .fondo-lobo { background-color: #450a0a; color: #fee2e2; }
+        .fondo-vidente { background-color: #3b0764; color: #f3e8ff; }
+        .fondo-bruja { background-color: #431407; color: #ffedd5; }
+        .fondo-cazador { background-color: #064e3b; color: #d1fae5; }
+        .fondo-cupido { background-color: #831843; color: #fce7f3; }
+
         .muerto { opacity: 0.5; pointer-events: none; filter: grayscale(100%); }
         .seleccionado { outline: 4px solid #3b82f6; }
         @keyframes pulso { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
@@ -34,10 +42,14 @@
         <!-- Panel de Mensajes Globales -->
         <div id="mensajes-sistema" class="w-full bg-white bg-opacity-20 p-4 rounded mb-4 text-center font-semibold text-lg flex flex-col gap-2"></div>
 
-        <!-- Banner de Turno Activo -->
-        <div id="alerta-mi-turno" class="w-full bg-green-500 text-black font-bold text-xl p-4 rounded mb-4 text-center hidden alerta-turno shadow-lg border-4 border-green-700">
-            ¡ES TU TURNO! Elige a tu objetivo.
+        <!-- NUEVO: Panel de Espera (Para saber de quién es el turno) -->
+        <div id="panel-espera" class="w-full bg-blue-900 text-white p-4 rounded mb-4 hidden border-2 border-blue-500 shadow-lg text-center">
+            <h3 class="font-bold text-lg mb-2">⏳ Turno en curso</h3>
+            <p id="texto-espera" class="text-lg font-semibold text-blue-200"></p>
         </div>
+
+        <!-- Banner de Turno Activo (Ahora cambia de color) -->
+        <div id="alerta-mi-turno" class="hidden"></div>
 
         <!-- Panel de Administrador (Lobby) -->
         <div id="panel-admin" class="w-full bg-gray-200 text-black p-4 rounded mb-4 hidden">
@@ -165,17 +177,15 @@
             else if (p.estado === 'venganza_cazador') colorFondo = 'venganza';
             else if (p.estado === 'fin') colorFondo = 'fin';
             
-            document.body.className = colorFondo + ' min-h-screen flex flex-col items-center p-4 font-sans transition-colors duration-1000';
-            
             const mSys = document.getElementById('mensajes-sistema');
             mSys.innerHTML = '';
             p.mensajes.forEach(m => { let p = document.createElement('p'); p.innerText = m; mSys.appendChild(p); });
             if(p.mensajes.length === 0) mSys.innerText = "Esperando a otros jugadores...";
 
+            // Resetear visibilidad de paneles secundarios
             if (p.estado === 'dia' || p.estado === 'lobby' || p.estado === 'fin') {
                 document.getElementById('panel-vision').classList.add('hidden');
             }
-
             if (p.estado === 'lobby') {
                 document.getElementById('panel-amor').classList.add('hidden');
             }
@@ -207,9 +217,20 @@
             document.getElementById('btn-reiniciar').classList.add('hidden');
             document.getElementById('btn-accion').classList.add('hidden');
             document.getElementById('alerta-mi-turno').classList.add('hidden');
+            document.getElementById('panel-espera').classList.add('hidden');
 
             let esMiTurno = false;
             let mensajeTurno = "¡ES TU TURNO!";
+            let claseBanner = "bg-green-600 border-green-800 text-white"; 
+            let fondoEspecial = null;
+            let textoEspera = "";
+            
+            // Determinar qué está pasando para el panel de los que están esperando
+            if (p.estado === 'noche_cupido') textoEspera = "🏹 Cupido está lanzando sus flechas...";
+            else if (p.estado === 'noche_vidente') textoEspera = "👁️ La Vidente está consultando su bola de cristal...";
+            else if (p.estado === 'noche_lobos') textoEspera = "🐺 Los Lobos están acechando a su presa...";
+            else if (p.estado === 'noche_bruja') textoEspera = "🔮 La Bruja está preparando sus pociones...";
+            else if (p.estado === 'venganza_cazador') textoEspera = "🏹 El Cazador está decidiendo a quién llevarse a la tumba...";
             
             if (p.estado === 'lobby' && p.jugadores[0]?.id === miId) {
                 document.getElementById('panel-admin').classList.remove('hidden');
@@ -221,17 +242,36 @@
                 }
             }
             else if (yo) {
-                // CORRECCIÓN: El cazador dispara estando MUERTO, por lo que su comprobación va fuera del yo.vivo
                 if (p.estado === 'venganza_cazador' && p.cazadorVengando === miId) { 
                     esMiTurno = true; 
                     mensajeTurno = "🏹 Cazador: Selecciona a quién llevarte a la tumba."; 
+                    fondoEspecial = "fondo-cazador";
+                    claseBanner = "bg-green-800 border-green-900 text-white";
                 }
-                // El resto de roles actúan estando VIVOS
                 else if (yo.vivo) {
-                    if (p.estado === 'dia') { esMiTurno = true; mensajeTurno = "☀️ Votación pública: Selecciona a quién linchar."; }
-                    else if (p.estado === 'noche_cupido' && miRol === 'Cupido') { esMiTurno = true; mensajeTurno = "🏹 Cupido: Selecciona a 2 jugadores para enamorar."; document.getElementById('btn-accion').classList.remove('hidden'); }
-                    else if (p.estado === 'noche_vidente' && miRol === 'Vidente') { esMiTurno = true; mensajeTurno = "👁️ Vidente: Selecciona a quién investigar."; }
-                    else if (p.estado === 'noche_lobos' && miRol === 'Lobo') { esMiTurno = true; mensajeTurno = "🐺 Lobo: Selecciona a quién devorar."; }
+                    if (p.estado === 'dia') { 
+                        esMiTurno = true; 
+                        mensajeTurno = "☀️ Votación pública: Selecciona a quién linchar."; 
+                    }
+                    else if (p.estado === 'noche_cupido' && miRol === 'Cupido') { 
+                        esMiTurno = true; 
+                        mensajeTurno = "🏹 Cupido: Selecciona a 2 jugadores para enamorar."; 
+                        document.getElementById('btn-accion').classList.remove('hidden');
+                        fondoEspecial = "fondo-cupido";
+                        claseBanner = "bg-pink-600 border-pink-800 text-white";
+                    }
+                    else if (p.estado === 'noche_vidente' && miRol === 'Vidente') { 
+                        esMiTurno = true; 
+                        mensajeTurno = "👁️ Vidente: Selecciona a quién investigar."; 
+                        fondoEspecial = "fondo-vidente";
+                        claseBanner = "bg-purple-600 border-purple-800 text-white";
+                    }
+                    else if (p.estado === 'noche_lobos' && miRol === 'Lobo') { 
+                        esMiTurno = true; 
+                        mensajeTurno = "🐺 Lobo: Selecciona a quién devorar."; 
+                        fondoEspecial = "fondo-lobo";
+                        claseBanner = "bg-red-600 border-red-800 text-white";
+                    }
                     else if (p.estado === 'noche_bruja' && miRol === 'Bruja') {
                         esMiTurno = true;
                         mensajeTurno = "🔮 Bruja: Usa tus pociones sabiamente.";
@@ -241,14 +281,28 @@
                         document.getElementById('bruja-curar').disabled = !p.brujaPociones.vida || !victima;
                         document.getElementById('bruja-curar').checked = false;
                         document.getElementById('btn-accion').classList.remove('hidden');
+                        fondoEspecial = "fondo-bruja";
+                        claseBanner = "bg-orange-600 border-orange-800 text-white";
                     }
                 }
 
+                const alerta = document.getElementById('alerta-mi-turno');
                 if (esMiTurno) {
-                    const alerta = document.getElementById('alerta-mi-turno');
                     alerta.innerText = mensajeTurno;
+                    alerta.className = `w-full font-bold text-xl p-4 rounded mb-4 text-center alerta-turno shadow-lg border-4 ${claseBanner}`;
                     alerta.classList.remove('hidden');
+                } else if (textoEspera && p.estado !== 'lobby' && p.estado !== 'fin' && p.estado !== 'dia') {
+                    // Si no es mi turno, pero alguien está actuando, muestro el cartel informativo azul
+                    document.getElementById('texto-espera').innerText = textoEspera;
+                    document.getElementById('panel-espera').classList.remove('hidden');
                 }
+            }
+
+            // Aplicar el fondo especial de rol solo al jugador activo
+            if (fondoEspecial && esMiTurno) {
+                document.body.className = fondoEspecial + ' min-h-screen flex flex-col items-center p-4 font-sans transition-colors duration-1000';
+            } else {
+                document.body.className = colorFondo + ' min-h-screen flex flex-col items-center p-4 font-sans transition-colors duration-1000';
             }
 
             const contenedor = document.getElementById('lista-jugadores');
