@@ -12,6 +12,8 @@
         .fin { background-color: #1e3a8a; color: #ffffff; }
         .muerto { opacity: 0.5; pointer-events: none; filter: grayscale(100%); }
         .seleccionado { outline: 4px solid #3b82f6; }
+        @keyframes pulso { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+        .alerta-turno { animation: pulso 2s infinite; }
     </style>
 </head>
 <body class="dia min-h-screen flex flex-col items-center p-4 font-sans transition-colors duration-1000">
@@ -31,6 +33,11 @@
 
         <!-- Panel de Mensajes Globales -->
         <div id="mensajes-sistema" class="w-full bg-white bg-opacity-20 p-4 rounded mb-4 text-center font-semibold text-lg flex flex-col gap-2"></div>
+
+        <!-- Banner de Turno Activo -->
+        <div id="alerta-mi-turno" class="w-full bg-green-500 text-black font-bold text-xl p-4 rounded mb-4 text-center hidden alerta-turno shadow-lg border-4 border-green-700">
+            ¡ES TU TURNO! Elige a tu objetivo.
+        </div>
 
         <!-- Panel de Administrador (Lobby) -->
         <div id="panel-admin" class="w-full bg-gray-200 text-black p-4 rounded mb-4 hidden">
@@ -126,6 +133,7 @@
 
             document.getElementById('btn-accion').classList.add('hidden');
             document.getElementById('panel-bruja').classList.add('hidden');
+            document.getElementById('alerta-mi-turno').classList.add('hidden');
             seleccionados = [];
         }
 
@@ -136,7 +144,6 @@
             estadoActual = p.estado;
             const yo = p.jugadores.find(j => j.id === miId);
             
-            // Fondo
             let colorFondo = 'dia';
             if (p.estado.includes('noche')) colorFondo = 'noche';
             else if (p.estado === 'venganza_cazador') colorFondo = 'venganza';
@@ -164,16 +171,16 @@
                 }
             }
 
-            // Ocultar paneles
             document.getElementById('panel-admin').classList.add('hidden');
             document.getElementById('panel-bruja').classList.add('hidden');
             document.getElementById('panel-fin').classList.add('hidden');
             document.getElementById('btn-reiniciar').classList.add('hidden');
             document.getElementById('btn-accion').classList.add('hidden');
+            document.getElementById('alerta-mi-turno').classList.add('hidden');
 
             let esMiTurno = false;
+            let mensajeTurno = "¡ES TU TURNO!";
             
-            // Lógicas de visibilidad según estado
             if (p.estado === 'lobby' && p.jugadores[0]?.id === miId) {
                 document.getElementById('panel-admin').classList.remove('hidden');
             } 
@@ -184,12 +191,13 @@
                 }
             }
             else if (yo && yo.vivo) {
-                if (p.estado === 'dia') esMiTurno = true;
-                else if (p.estado === 'noche_cupido' && miRol === 'Cupido') { esMiTurno = true; document.getElementById('btn-accion').classList.remove('hidden'); }
-                else if (p.estado === 'noche_vidente' && miRol === 'Vidente') esMiTurno = true;
-                else if (p.estado === 'noche_lobos' && miRol === 'Lobo') esMiTurno = true;
+                if (p.estado === 'dia') { esMiTurno = true; mensajeTurno = "☀️ Votación pública: Selecciona a quién linchar."; }
+                else if (p.estado === 'noche_cupido' && miRol === 'Cupido') { esMiTurno = true; mensajeTurno = "🏹 Cupido: Selecciona a 2 jugadores para enamorar."; document.getElementById('btn-accion').classList.remove('hidden'); }
+                else if (p.estado === 'noche_vidente' && miRol === 'Vidente') { esMiTurno = true; mensajeTurno = "👁️ Vidente: Selecciona a quién investigar."; }
+                else if (p.estado === 'noche_lobos' && miRol === 'Lobo') { esMiTurno = true; mensajeTurno = "🐺 Lobo: Selecciona a quién devorar."; }
                 else if (p.estado === 'noche_bruja' && miRol === 'Bruja') {
                     esMiTurno = true;
+                    mensajeTurno = "🔮 Bruja: Usa tus pociones sabiamente.";
                     document.getElementById('panel-bruja').classList.remove('hidden');
                     const victima = p.jugadores.find(j => j.id === p.victimaLobos);
                     document.getElementById('info-victima').innerHTML = `Víctima de los lobos: <span class="font-bold text-red-400">${victima ? victima.nombre : 'Nadie'}</span>`;
@@ -197,7 +205,13 @@
                     document.getElementById('bruja-curar').checked = false;
                     document.getElementById('btn-accion').classList.remove('hidden');
                 }
-                else if (p.estado === 'venganza_cazador' && p.cazadorVengando === miId) esMiTurno = true;
+                else if (p.estado === 'venganza_cazador' && p.cazadorVengando === miId) { esMiTurno = true; mensajeTurno = "🏹 Cazador: Selecciona a quién llevarte a la tumba."; }
+
+                if (esMiTurno) {
+                    const alerta = document.getElementById('alerta-mi-turno');
+                    alerta.innerText = mensajeTurno;
+                    alerta.classList.remove('hidden');
+                }
             }
 
             const contenedor = document.getElementById('lista-jugadores');
@@ -211,7 +225,7 @@
                 if (esMiTurno && j.vivo) {
                     let puedeSeleccionar = true;
                     if (p.estado === 'dia' && j.id === miId) puedeSeleccionar = false;
-                    if (p.estado === 'noche_lobos' && j.rol === 'Lobo') puedeSeleccionar = false;
+                    if (p.estado === 'noche_lobos' && j.rol === 'Lobo') puedeSeleccionar = false; // Los lobos no pueden votarse a sí mismos ni a otros lobos
                     
                     if (puedeSeleccionar) {
                         div.classList.add('cursor-pointer', 'hover:bg-blue-100');

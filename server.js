@@ -251,11 +251,36 @@ io.on('connection', (socket) => {
         enviarEstado();
     });
 
-    socket.on('disconnect', () => {
+socket.on('disconnect', () => {
+        const jugador = partida.jugadores.find(j => j.id === socket.id);
         partida.jugadores = partida.jugadores.filter(j => j.id !== socket.id);
+        
+        if (partida.estado !== 'lobby' && partida.estado !== 'fin') {
+            partida.mensajes.push(`🔌 ${jugador ? jugador.nombre : 'Un jugador'} se ha desconectado.`);
+            
+            // 1. Comprobar si la partida se acaba (ej: el último lobo se fue)
+            if (comprobarVictoria()) {
+                enviarEstado();
+                return;
+            }
+            
+            // 2. Si la partida sigue, evitar que se atasque en la noche
+            if (partida.estado === 'noche_cupido' && rolesVivos('Cupido') === 0) avanzarFaseNoche('cupido');
+            else if (partida.estado === 'noche_vidente' && rolesVivos('Vidente') === 0) avanzarFaseNoche('vidente');
+            else if (partida.estado === 'noche_lobos' && rolesVivos('Lobo') === 0) avanzarFaseNoche('lobos');
+            else if (partida.estado === 'noche_bruja' && rolesVivos('Bruja') === 0) avanzarFaseNoche('bruja');
+            
+            // 3. Evitar que se atasque en las votaciones de día
+            else if (partida.estado === 'dia') {
+                if (Object.keys(partida.votosDia).length >= partida.jugadores.filter(j => j.vivo).length) {
+                    const linchado = calcularMasVotado(partida.votosDia);
+                    partida.mensajes = []; 
+                    procesarMuertes([linchado], 'noche_inicio');
+                }
+            }
+        }
         enviarEstado();
     });
-});
 
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, '0.0.0.0', () => {
