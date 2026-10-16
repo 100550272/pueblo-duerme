@@ -91,21 +91,25 @@ function procesarMuertes(listaIds, siguienteFase) {
         }
     });
 
-    if (comprobarVictoria()) { enviarEstado(); return; }
-
+    // CORRECCIÓN: Primero verificamos si el Cazador debe disparar antes de declarar un ganador
     if (cazadorMuertoId) {
         partida.cazadorVengando = cazadorMuertoId;
         partida.estadoSiguiente = siguienteFase;
         partida.estado = 'venganza_cazador';
         partida.mensajes.push("🏹 El Cazador ha muerto, pero antes de exhalar su último aliento... elegirá a quién llevarse a la tumba.");
-    } else {
-        partida.estado = siguienteFase;
-        if (siguienteFase === 'dia') {
-            partida.mensajes.push("☀️ Ha amanecido en el pueblo. Es hora de debatir y votar.");
-        } else if (siguienteFase === 'noche_inicio') {
-            avanzarFaseNoche('inicio');
-            return; 
-        }
+        enviarEstado();
+        return; 
+    }
+
+    // Si el Cazador no tiene que disparar, entonces comprobamos si alguien ha ganado
+    if (comprobarVictoria()) { enviarEstado(); return; }
+
+    partida.estado = siguienteFase;
+    if (siguienteFase === 'dia') {
+        partida.mensajes.push("☀️ Ha amanecido en el pueblo. Es hora de debatir y votar.");
+    } else if (siguienteFase === 'noche_inicio') {
+        avanzarFaseNoche('inicio');
+        return; 
     }
     enviarEstado();
 }

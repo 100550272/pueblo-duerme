@@ -65,6 +65,12 @@
             <button onclick="document.getElementById('panel-vision').classList.add('hidden')" class="mt-4 bg-blue-700 hover:bg-blue-500 text-white px-6 py-2 rounded font-bold shadow">Entendido</button>
         </div>
 
+        <!-- Panel de Enamorados (Cupido) -->
+        <div id="panel-amor" class="w-full bg-pink-900 text-white p-4 rounded mb-4 hidden border-2 border-pink-400 shadow-lg text-center">
+            <h3 class="font-bold text-lg mb-2">💘 Flechazo de Cupido</h3>
+            <p id="texto-amor" class="text-lg font-bold text-pink-200"></p>
+        </div>
+
         <!-- Controles Especiales de Bruja -->
         <div id="panel-bruja" class="w-full bg-purple-900 text-white p-4 rounded mb-4 hidden border-2 border-purple-500 shadow-lg">
             <h3 class="font-bold text-lg mb-2">🔮 Turno de la Bruja</h3>
@@ -144,7 +150,6 @@
             seleccionados = [];
         }
 
-        // NUEVO: El mensaje privado ahora muestra el panel azul en vez del pop-up
         socket.on('mensajePrivado', (msg) => {
             document.getElementById('texto-vision').innerText = msg;
             document.getElementById('panel-vision').classList.remove('hidden');
@@ -167,9 +172,13 @@
             p.mensajes.forEach(m => { let p = document.createElement('p'); p.innerText = m; mSys.appendChild(p); });
             if(p.mensajes.length === 0) mSys.innerText = "Esperando a otros jugadores...";
 
-            // Auto-ocultar la visión de la vidente al amanecer o al reiniciar
             if (p.estado === 'dia' || p.estado === 'lobby' || p.estado === 'fin') {
                 document.getElementById('panel-vision').classList.add('hidden');
+            }
+
+            // Ocultar panel de amor en el lobby por defecto
+            if (p.estado === 'lobby') {
+                document.getElementById('panel-amor').classList.add('hidden');
             }
 
             if (yo) {
@@ -177,13 +186,20 @@
                 document.getElementById('info-rol').innerText = `Tu rol: ${miRol} | ${yo.vivo ? 'VIVO' : 'MUERTO'}`;
                 
                 const msgAmor = document.getElementById('info-amor');
-                if (p.enamorados.includes(miId)) {
+                if (p.enamorados.includes(miId) && p.estado !== 'lobby') {
                     const parejaId = p.enamorados.find(id => id !== miId);
                     const pareja = p.jugadores.find(j => j.id === parejaId);
-                    msgAmor.innerText = `❤️ Estás enamorado de: ${pareja ? pareja.nombre : 'Alguien'}`;
+                    const nombrePareja = pareja ? pareja.nombre : 'Alguien';
+                    
+                    msgAmor.innerText = `❤️ Estás enamorado de: ${nombrePareja}`;
                     msgAmor.classList.remove('hidden');
+
+                    // Mostrar el nuevo panel rosa gigante si la partida está activa o finalizada
+                    document.getElementById('texto-amor').innerText = `Tu destino está unido al de ${nombrePareja}. Si tu pareja muere, tú morirás de tristeza.`;
+                    document.getElementById('panel-amor').classList.remove('hidden');
                 } else {
                     msgAmor.classList.add('hidden');
+                    document.getElementById('panel-amor').classList.add('hidden');
                 }
             }
 
