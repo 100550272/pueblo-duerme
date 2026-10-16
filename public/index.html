@@ -9,6 +9,7 @@
         .noche { background-color: #111827; color: #e5e7eb; }
         .dia { background-color: #f3f4f6; color: #1f2937; }
         .venganza { background-color: #7f1d1d; color: #fee2e2; }
+        .fin { background-color: #1e3a8a; color: #ffffff; }
         .muerto { opacity: 0.5; pointer-events: none; filter: grayscale(100%); }
         .seleccionado { outline: 4px solid #3b82f6; }
     </style>
@@ -31,7 +32,7 @@
         <!-- Panel de Mensajes Globales -->
         <div id="mensajes-sistema" class="w-full bg-white bg-opacity-20 p-4 rounded mb-4 text-center font-semibold text-lg flex flex-col gap-2"></div>
 
-        <!-- Panel de Administrador -->
+        <!-- Panel de Administrador (Lobby) -->
         <div id="panel-admin" class="w-full bg-gray-200 text-black p-4 rounded mb-4 hidden">
             <h2 class="font-bold mb-2">Configuración (Admin)</h2>
             <div class="grid grid-cols-2 md:grid-cols-5 gap-2 text-sm items-center">
@@ -42,6 +43,12 @@
                 <label><input type="checkbox" id="c-cazador" checked> Cazador</label>
             </div>
             <button onclick="empezarPartida()" class="mt-4 bg-red-600 text-white px-4 py-2 rounded font-bold w-full">Comenzar Partida</button>
+        </div>
+
+        <!-- Panel Fin de Partida -->
+        <div id="panel-fin" class="w-full bg-yellow-500 text-black p-6 rounded mb-4 hidden text-center shadow-lg">
+            <h2 class="font-bold text-2xl mb-4">¡Partida Finalizada!</h2>
+            <button id="btn-reiniciar" onclick="reiniciarPartida()" class="bg-black text-white px-8 py-3 rounded font-bold w-full hidden hover:bg-gray-800">Volver al Lobby (Nueva Partida)</button>
         </div>
 
         <!-- Controles Especiales de Bruja -->
@@ -80,6 +87,10 @@
                 bruja: document.getElementById('c-bruja').checked,
                 cazador: document.getElementById('c-cazador').checked
             });
+        }
+
+        function reiniciarPartida() {
+            socket.emit('reiniciarPartida');
         }
 
         function toggleJugador(id) {
@@ -125,7 +136,13 @@
             estadoActual = p.estado;
             const yo = p.jugadores.find(j => j.id === miId);
             
-            document.body.className = (p.estado.includes('noche') ? 'noche' : (p.estado === 'venganza_cazador' ? 'venganza' : 'dia')) + ' min-h-screen flex flex-col items-center p-4 font-sans transition-colors duration-1000';
+            // Fondo
+            let colorFondo = 'dia';
+            if (p.estado.includes('noche')) colorFondo = 'noche';
+            else if (p.estado === 'venganza_cazador') colorFondo = 'venganza';
+            else if (p.estado === 'fin') colorFondo = 'fin';
+            
+            document.body.className = colorFondo + ' min-h-screen flex flex-col items-center p-4 font-sans transition-colors duration-1000';
             
             const mSys = document.getElementById('mensajes-sistema');
             mSys.innerHTML = '';
@@ -142,15 +159,30 @@
                     const pareja = p.jugadores.find(j => j.id === parejaId);
                     msgAmor.innerText = `❤️ Estás enamorado de: ${pareja ? pareja.nombre : 'Alguien'}`;
                     msgAmor.classList.remove('hidden');
+                } else {
+                    msgAmor.classList.add('hidden');
                 }
             }
 
+            // Ocultar paneles
             document.getElementById('panel-admin').classList.add('hidden');
             document.getElementById('panel-bruja').classList.add('hidden');
+            document.getElementById('panel-fin').classList.add('hidden');
+            document.getElementById('btn-reiniciar').classList.add('hidden');
             document.getElementById('btn-accion').classList.add('hidden');
 
             let esMiTurno = false;
-            if (p.estado === 'lobby' && p.jugadores[0]?.id === miId) document.getElementById('panel-admin').classList.remove('hidden');
+            
+            // Lógicas de visibilidad según estado
+            if (p.estado === 'lobby' && p.jugadores[0]?.id === miId) {
+                document.getElementById('panel-admin').classList.remove('hidden');
+            } 
+            else if (p.estado === 'fin') {
+                document.getElementById('panel-fin').classList.remove('hidden');
+                if (p.jugadores[0]?.id === miId) {
+                    document.getElementById('btn-reiniciar').classList.remove('hidden');
+                }
+            }
             else if (yo && yo.vivo) {
                 if (p.estado === 'dia') esMiTurno = true;
                 else if (p.estado === 'noche_cupido' && miRol === 'Cupido') { esMiTurno = true; document.getElementById('btn-accion').classList.remove('hidden'); }

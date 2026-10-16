@@ -162,8 +162,7 @@ function calcularMasVotado(votos) {
 
 io.on('connection', (socket) => {
     socket.on('unirse', (nombre) => {
-        if (partida.estado !== 'lobby') return socket.emit('error', 'La partida ya ha empezado');
-        // Inicialización corregida para evitar el estado "undefined | MUERTO" en el lobby
+        if (partida.estado !== 'lobby' && partida.estado !== 'fin') return socket.emit('error', 'La partida está en curso');
         partida.jugadores.push({ id: socket.id, nombre: nombre || `Jugador ${partida.jugadores.length + 1}`, vivo: true, rol: 'Asignando...' });
         enviarEstado();
     });
@@ -226,10 +225,39 @@ io.on('connection', (socket) => {
         }
     });
 
+    // NUEVA FUNCIÓN: Resetear partida
+    socket.on('reiniciarPartida', () => {
+        if (partida.estado !== 'fin') return;
+        
+        partida.estado = 'lobby';
+        partida.ronda = 0;
+        partida.enamorados = [];
+        partida.brujaPociones = { vida: true, muerte: true };
+        partida.votosLobos = {};
+        partida.votosDia = {};
+        partida.victimaLobos = null;
+        partida.victimaBruja = null;
+        partida.brujaCuro = false;
+        partida.cazadorVengando = null;
+        partida.estadoSiguiente = null;
+        partida.mensajes = [];
+
+        // Resucitar a todos para el nuevo lobby
+        partida.jugadores.forEach(j => {
+            j.vivo = true;
+            j.rol = 'Asignando...';
+        });
+
+        enviarEstado();
+    });
+
     socket.on('disconnect', () => {
         partida.jugadores = partida.jugadores.filter(j => j.id !== socket.id);
         enviarEstado();
     });
 });
 
-server.listen(3000, '0.0.0.0', () => console.log('Servidor de Pueblo Duerme Avanzado activo en puerto 3000'));
+const PORT = process.env.PORT || 3000;
+server.listen(PORT, '0.0.0.0', () => {
+    console.log(`Servidor activo en el puerto ${PORT}`);
+});
