@@ -128,7 +128,6 @@ function avanzarFaseNoche(faseActual) {
         partida.votosLobos = {};
         partida.votosDia = {};
         
-        // Usamos push para no borrar el mensaje de empate o linchamiento del día anterior
         partida.mensajes.push(`🌙 Cae la noche en el pueblo (Ronda ${partida.ronda}). Todos cierran los ojos.`);
         
         if (partida.ronda === 1 && rolesVivos('Cupido') > 0) partida.estado = 'noche_cupido';
@@ -159,7 +158,6 @@ function avanzarFaseNoche(faseActual) {
     enviarEstado();
 }
 
-// NUEVO: Devuelve una lista de los que están empatados en primer lugar
 function calcularMasVotado(votos) {
     let conteo = {};
     Object.values(votos).forEach(id => conteo[id] = (conteo[id] || 0) + 1);
@@ -172,7 +170,7 @@ function calcularMasVotado(votos) {
     for (const [id, cant] of Object.entries(conteo)) {
         if (cant === maxVotos) masVotados.push(id);
     }
-    return masVotados; // Ahora devuelve un array (ej: ['id1'] o ['id1', 'id2'])
+    return masVotados; 
 }
 
 function evaluarVotosLobos() {
@@ -214,6 +212,8 @@ io.on('connection', (socket) => {
 
     socket.on('accionCupido', (ids) => {
         if (partida.estado !== 'noche_cupido') return;
+        // NUEVO: Candado de seguridad por si envían menos de 2
+        if (!Array.isArray(ids) || ids.length !== 2) return; 
         partida.enamorados = ids;
         avanzarFaseNoche('cupido');
     });
@@ -265,7 +265,7 @@ io.on('connection', (socket) => {
     socket.on('votarDia', (id) => {
         if (partida.estado !== 'dia') return;
         partida.votosDia[socket.id] = id;
-        enviarEstado(); // NUEVO: Enviar para que todos vean los votos en vivo
+        enviarEstado(); 
 
         if (Object.keys(partida.votosDia).length >= partida.jugadores.filter(j => j.vivo).length) {
             const empatados = calcularMasVotado(partida.votosDia);

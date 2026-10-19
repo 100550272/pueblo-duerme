@@ -179,7 +179,20 @@
                 document.getElementById('card-' + id).classList.add('seleccionado');
             }
             
-            document.getElementById('btn-accion').classList.remove('hidden');
+            // NUEVO: Asegurarnos de que Cupido solo pueda confirmar si tiene exactamente 2 personas seleccionadas
+            if (estadoActual === 'noche_cupido' && miRol === 'Cupido') {
+                if (seleccionados.length === 2) {
+                    document.getElementById('btn-accion').classList.remove('hidden');
+                } else {
+                    document.getElementById('btn-accion').classList.add('hidden');
+                }
+            } else {
+                if (seleccionados.length > 0) {
+                    document.getElementById('btn-accion').classList.remove('hidden');
+                } else {
+                    document.getElementById('btn-accion').classList.add('hidden');
+                }
+            }
         }
 
         function confirmarAccion() {
@@ -251,11 +264,13 @@
                     const parejaId = p.enamorados.find(id => id !== miId);
                     const pareja = p.jugadores.find(j => j.id === parejaId);
                     const nombrePareja = pareja ? pareja.nombre : 'Alguien';
+                    const rolPareja = pareja ? pareja.rol : 'Desconocido'; // NUEVO: Extraemos el rol
                     
-                    msgAmor.innerText = `❤️ Estás enamorado de: ${nombrePareja}`;
+                    msgAmor.innerText = `❤️ Estás enamorado de: ${nombrePareja} (${rolPareja})`;
                     msgAmor.classList.remove('hidden');
 
-                    document.getElementById('texto-amor').innerText = `Tu destino está unido al de ${nombrePareja}. Si tu pareja muere, tú morirás de tristeza.`;
+                    // NUEVO: Añadimos el rol al texto que se lee dentro del panel rosa
+                    document.getElementById('texto-amor').innerHTML = `Tu destino está unido al de <span class="font-bold text-white">${nombrePareja}</span>. Su rol es: <span class="font-bold text-yellow-300">${rolPareja}</span>.<br>Si tu pareja muere, tú morirás de tristeza.`;
                     document.getElementById('panel-amor').classList.remove('hidden');
                 } else {
                     msgAmor.classList.add('hidden');
@@ -293,12 +308,11 @@
                     if (p.estado === 'dia') { 
                         esMiTurno = true; 
                         mensajeTurno = "☀️ Votación pública: Selecciona a quién linchar. Puedes cambiar tu voto antes del último."; 
-                        document.getElementById('btn-accion').classList.remove('hidden');
                     }
                     else if (p.estado === 'noche_cupido' && miRol === 'Cupido') { 
                         esMiTurno = true; 
                         mensajeTurno = "🏹 Cupido: Selecciona a 2 jugadores para enamorar."; 
-                        document.getElementById('btn-accion').classList.remove('hidden');
+                        // El botón no se muestra por defecto, se calcula al hacer clic en toggleJugador
                         fondoEspecial = "fondo-cupido";
                         claseBanner = "bg-pink-600 border-pink-800 text-white";
                     }
@@ -373,7 +387,6 @@
                     }
                 }
 
-                // NUEVO: Mostrar los votos del día en vivo y el propio voto en amarillo
                 if (p.estado === 'dia') {
                     const votantesAqui = Object.entries(p.votosDia).filter(([votanteId, vicId]) => vicId === j.id);
                     if (votantesAqui.length > 0) {
