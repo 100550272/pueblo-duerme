@@ -212,7 +212,6 @@ io.on('connection', (socket) => {
 
     socket.on('accionCupido', (ids) => {
         if (partida.estado !== 'noche_cupido') return;
-        // NUEVO: Candado de seguridad por si envían menos de 2
         if (!Array.isArray(ids) || ids.length !== 2) return; 
         partida.enamorados = ids;
         avanzarFaseNoche('cupido');
@@ -239,6 +238,15 @@ io.on('connection', (socket) => {
             partida.jugadores.filter(j => j.rol === 'Lobo').forEach(lobo => {
                 io.to(lobo.id).emit('nuevoChatLobo', { nombre: autor.nombre, msg });
             });
+        }
+    });
+
+    // NUEVO: Recepción de chat público para los vivos
+    socket.on('enviarChatPublico', (msg) => {
+        if (partida.estado !== 'dia') return;
+        const autor = partida.jugadores.find(j => j.id === socket.id);
+        if (autor && autor.vivo) {
+            io.emit('nuevoChatPublico', { nombre: autor.nombre, msg });
         }
     });
 

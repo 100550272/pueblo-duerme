@@ -41,6 +41,16 @@
         <!-- Panel de Mensajes Globales -->
         <div id="mensajes-sistema" class="w-full bg-white bg-opacity-20 p-4 rounded mb-4 text-center font-semibold text-lg flex flex-col gap-2"></div>
 
+        <!-- NUEVO: Chat Público (Día) -->
+        <div id="panel-chat-publico" class="w-full bg-gray-200 text-black p-4 rounded mb-4 hidden border-2 border-gray-400 shadow-lg">
+            <h3 class="font-bold text-lg mb-2">🗣️ Asamblea del Pueblo</h3>
+            <div id="mensajes-publicos" class="bg-white p-2 h-32 overflow-y-auto mb-2 text-sm flex flex-col gap-1 rounded border border-gray-300"></div>
+            <div class="flex gap-2">
+                <input type="text" id="input-chat-publico" class="flex-1 p-2 text-black rounded border border-gray-300 shadow-inner" placeholder="Debate con el pueblo...">
+                <button id="btn-chat-publico" onclick="enviarChatPublico()" class="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded font-bold shadow">Enviar</button>
+            </div>
+        </div>
+
         <!-- Panel de Espera -->
         <div id="panel-espera" class="w-full bg-blue-900 text-white p-4 rounded mb-4 hidden border-2 border-blue-500 shadow-lg text-center">
             <h3 class="font-bold text-lg mb-2">⏳ Turno en curso</h3>
@@ -145,6 +155,25 @@
             caja.scrollTop = caja.scrollHeight;
         });
 
+        // NUEVO: Funciones de Chat Público
+        function enviarChatPublico() {
+            const input = document.getElementById('input-chat-publico');
+            if (input.value.trim() !== '') {
+                socket.emit('enviarChatPublico', input.value);
+                input.value = '';
+            }
+        }
+        
+        document.getElementById('input-chat-publico').addEventListener('keypress', function (e) {
+            if (e.key === 'Enter') enviarChatPublico();
+        });
+
+        socket.on('nuevoChatPublico', (data) => {
+            const caja = document.getElementById('mensajes-publicos');
+            caja.innerHTML += `<div><span class="font-bold text-blue-700">${data.nombre}:</span> ${data.msg}</div>`;
+            caja.scrollTop = caja.scrollHeight;
+        });
+
         function empezarPartida() {
             socket.emit('empezarPartida', {
                 lobos: parseInt(document.getElementById('c-lobos').value),
@@ -179,7 +208,6 @@
                 document.getElementById('card-' + id).classList.add('seleccionado');
             }
             
-            // NUEVO: Asegurarnos de que Cupido solo pueda confirmar si tiene exactamente 2 personas seleccionadas
             if (estadoActual === 'noche_cupido' && miRol === 'Cupido') {
                 if (seleccionados.length === 2) {
                     document.getElementById('btn-accion').classList.remove('hidden');
@@ -239,6 +267,7 @@
             if (p.estado === 'lobby') {
                 document.getElementById('panel-amor').classList.add('hidden');
                 document.getElementById('mensajes-lobos').innerHTML = ''; 
+                document.getElementById('mensajes-publicos').innerHTML = ''; 
             }
 
             document.getElementById('panel-admin').classList.add('hidden');
@@ -250,6 +279,7 @@
             document.getElementById('panel-espera').classList.add('hidden');
             document.getElementById('panel-muerto').classList.add('hidden');
             document.getElementById('panel-chat-lobos').classList.add('hidden');
+            document.getElementById('panel-chat-publico').classList.add('hidden');
 
             if (yo) {
                 miRol = yo.rol;
@@ -264,17 +294,33 @@
                     const parejaId = p.enamorados.find(id => id !== miId);
                     const pareja = p.jugadores.find(j => j.id === parejaId);
                     const nombrePareja = pareja ? pareja.nombre : 'Alguien';
-                    const rolPareja = pareja ? pareja.rol : 'Desconocido'; // NUEVO: Extraemos el rol
+                    const rolPareja = pareja ? pareja.rol : 'Desconocido'; 
                     
                     msgAmor.innerText = `❤️ Estás enamorado de: ${nombrePareja} (${rolPareja})`;
                     msgAmor.classList.remove('hidden');
 
-                    // NUEVO: Añadimos el rol al texto que se lee dentro del panel rosa
                     document.getElementById('texto-amor').innerHTML = `Tu destino está unido al de <span class="font-bold text-white">${nombrePareja}</span>. Su rol es: <span class="font-bold text-yellow-300">${rolPareja}</span>.<br>Si tu pareja muere, tú morirás de tristeza.`;
                     document.getElementById('panel-amor').classList.remove('hidden');
                 } else {
                     msgAmor.classList.add('hidden');
                     document.getElementById('panel-amor').classList.add('hidden');
+                }
+            }
+
+            // NUEVO: Mostrar el panel de la Asamblea solo de día
+            if (p.estado === 'dia') {
+                document.getElementById('panel-chat-publico').classList.remove('hidden');
+                // Los muertos solo leen, no escriben
+                if (yo && !yo.vivo) {
+                    document.getElementById('input-chat-publico').disabled = true;
+                    document.getElementById('input-chat-publico').placeholder = "Los muertos no pueden hablar...";
+                    document.getElementById('btn-chat-publico').disabled = true;
+                    document.getElementById('btn-chat-publico').classList.add('opacity-50');
+                } else {
+                    document.getElementById('input-chat-publico').disabled = false;
+                    document.getElementById('input-chat-publico').placeholder = "Debate con el pueblo...";
+                    document.getElementById('btn-chat-publico').disabled = false;
+                    document.getElementById('btn-chat-publico').classList.remove('opacity-50');
                 }
             }
 
@@ -312,7 +358,6 @@
                     else if (p.estado === 'noche_cupido' && miRol === 'Cupido') { 
                         esMiTurno = true; 
                         mensajeTurno = "🏹 Cupido: Selecciona a 2 jugadores para enamorar."; 
-                        // El botón no se muestra por defecto, se calcula al hacer clic en toggleJugador
                         fondoEspecial = "fondo-cupido";
                         claseBanner = "bg-pink-600 border-pink-800 text-white";
                     }
