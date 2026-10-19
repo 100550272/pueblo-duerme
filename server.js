@@ -69,7 +69,6 @@ function comprobarVictoria() {
     return false;
 }
 
-// AÑADIDO: Parámetro "causa" para diferenciar linchamientos
 function procesarMuertes(listaIds, siguienteFase, causa = 'noche') {
     let cazadorMuertoId = null;
 
@@ -78,7 +77,6 @@ function procesarMuertes(listaIds, siguienteFase, causa = 'noche') {
         if (j && j.vivo) {
             j.vivo = false;
             
-            // Lógica de mensaje personalizado
             if (causa === 'linchamiento') {
                 partida.mensajes.push(`🔥 ${j.nombre} ha sido linchado por el pueblo. Su rol era: ${j.rol}.`);
             } else {
@@ -129,7 +127,9 @@ function avanzarFaseNoche(faseActual) {
         partida.brujaCuro = false;
         partida.votosLobos = {};
         partida.votosDia = {};
-        partida.mensajes = [`🌙 Cae la noche en el pueblo (Ronda ${partida.ronda}). Todos cierran los ojos.`];
+        
+        // Usamos push para no borrar el mensaje de empate o linchamiento del día anterior
+        partida.mensajes.push(`🌙 Cae la noche en el pueblo (Ronda ${partida.ronda}). Todos cierran los ojos.`);
         
         if (partida.ronda === 1 && rolesVivos('Cupido') > 0) partida.estado = 'noche_cupido';
         else avanzarFaseNoche('cupido');
@@ -159,14 +159,44 @@ function avanzarFaseNoche(faseActual) {
     enviarEstado();
 }
 
+// NUEVO: Devuelve una lista de los que están empatados en primer lugar
 function calcularMasVotado(votos) {
     let conteo = {};
     Object.values(votos).forEach(id => conteo[id] = (conteo[id] || 0) + 1);
-    let masVotado = null, maxVotos = 0;
-    for (const [id, cant] of Object.entries(conteo)) {
-        if (cant > maxVotos) { maxVotos = cant; masVotado = id; }
+    let maxVotos = 0;
+    for (const cant of Object.values(conteo)) {
+        if (cant > maxVotos) maxVotos = cant;
     }
-    return masVotado;
+    if (maxVotos === 0) return [];
+    let masVotados = [];
+    for (const [id, cant] of Object.entries(conteo)) {
+        if (cant === maxVotos) masVotados.push(id);
+    }
+    return masVotados; // Ahora devuelve un array (ej: ['id1'] o ['id1', 'id2'])
+}
+
+function evaluarVotosLobos() {
+    const lobosVivos = partida.jugadores.filter(j => j.rol === 'Lobo' && j.vivo);
+    if (lobosVivos.length === 0) return;
+
+    let todosHanVotado = true;
+    let votoUnanime = true;
+    let primerVoto = null;
+
+    for (let lobo of lobosVivos) {
+        const voto = partida.votosLobos[lobo.id];
+        if (!voto) {
+            todosHanVotado = false;
+            break;
+        }
+        if (!primerVoto) primerVoto = voto;
+        else if (voto !== primerVoto) votoUnanime = false;
+    }
+
+    if (todosHanVotado && votoUnanime) {
+        partida.victimaLobos = primerVoto;
+        avanzarFaseNoche('lobos');
+    }
 }
 
 io.on('connection', (socket) => {
@@ -198,9 +228,17 @@ io.on('connection', (socket) => {
     socket.on('accionLobos', (id) => {
         if (partida.estado !== 'noche_lobos') return;
         partida.votosLobos[socket.id] = id;
-        if (Object.keys(partida.votosLobos).length >= rolesVivos('Lobo')) {
-            partida.victimaLobos = calcularMasVotado(partida.votosLobos);
-            avanzarFaseNoche('lobos');
+        enviarEstado(); 
+        evaluarVotosLobos(); 
+    });
+
+    socket.on('enviarChatLobo', (msg) => {
+        if (partida.estado !== 'noche_lobos') return;
+        const autor = partida.jugadores.find(j => j.id === socket.id);
+        if (autor && autor.rol === 'Lobo' && autor.vivo) {
+            partida.jugadores.filter(j => j.rol === 'Lobo').forEach(lobo => {
+                io.to(lobo.id).emit('nuevoChatLobo', { nombre: autor.nombre, msg });
+            });
         }
     });
 
@@ -227,16 +265,23 @@ io.on('connection', (socket) => {
     socket.on('votarDia', (id) => {
         if (partida.estado !== 'dia') return;
         partida.votosDia[socket.id] = id;
+        enviarEstado(); // NUEVO: Enviar para que todos vean los votos en vivo
+
         if (Object.keys(partida.votosDia).length >= partida.jugadores.filter(j => j.vivo).length) {
-            const linchado = calcularMasVotado(partida.votosDia);
+            const empatados = calcularMasVotado(partida.votosDia);
             partida.mensajes = []; 
-            procesarMuertes([linchado], 'noche_inicio', 'linchamiento'); // AÑADIDA ETIQUETA
+            if (empatados.length === 1) {
+                procesarMuertes(empatados, 'noche_inicio', 'linchamiento'); 
+            } else {
+                partida.mensajes.push("⚖️ El pueblo no ha logrado ponerse de acuerdo. Hay un empate y nadie es linchado hoy.");
+                partida.estado = 'noche_inicio';
+                avanzarFaseNoche('inicio');
+            }
         }
     });
 
     socket.on('reiniciarPartida', () => {
         if (partida.estado !== 'fin') return;
-        
         partida.estado = 'lobby';
         partida.ronda = 0;
         partida.enamorados = [];
@@ -249,12 +294,7 @@ io.on('connection', (socket) => {
         partida.cazadorVengando = null;
         partida.estadoSiguiente = null;
         partida.mensajes = [];
-
-        partida.jugadores.forEach(j => {
-            j.vivo = true;
-            j.rol = 'Asignando...';
-        });
-
+        partida.jugadores.forEach(j => { j.vivo = true; j.rol = 'Asignando...'; });
         enviarEstado();
     });
 
@@ -264,34 +304,33 @@ io.on('connection', (socket) => {
         
         if (partida.estado !== 'lobby' && partida.estado !== 'fin') {
             partida.mensajes.push(`🔌 ${jugador ? jugador.nombre : 'Un jugador'} se ha desconectado.`);
-            
-            if (comprobarVictoria()) {
-                enviarEstado();
-                return;
-            }
+            if (comprobarVictoria()) { enviarEstado(); return; }
             
             if (partida.estado === 'noche_cupido' && rolesVivos('Cupido') === 0) avanzarFaseNoche('cupido');
             else if (partida.estado === 'noche_vidente' && rolesVivos('Vidente') === 0) avanzarFaseNoche('vidente');
-            else if (partida.estado === 'noche_lobos' && rolesVivos('Lobo') === 0) avanzarFaseNoche('lobos');
+            else if (partida.estado === 'noche_lobos') {
+                if (rolesVivos('Lobo') === 0) avanzarFaseNoche('lobos');
+                else evaluarVotosLobos();
+            }
             else if (partida.estado === 'noche_bruja' && rolesVivos('Bruja') === 0) avanzarFaseNoche('bruja');
-            
             else if (partida.estado === 'venganza_cazador' && partida.cazadorVengando === socket.id) {
                 partida.cazadorVengando = null;
                 partida.mensajes.push("💨 El Cazador desapareció antes de poder apretar el gatillo.");
                 partida.estado = partida.estadoSiguiente;
-                if (partida.estado === 'dia') {
-                    partida.mensajes.push("☀️ Ha amanecido en el pueblo. Es hora de debatir y votar.");
-                } else if (partida.estado === 'noche_inicio') {
-                    avanzarFaseNoche('inicio');
-                    return; 
-                }
+                if (partida.estado === 'dia') partida.mensajes.push("☀️ Ha amanecido en el pueblo. Es hora de debatir y votar.");
+                else if (partida.estado === 'noche_inicio') { avanzarFaseNoche('inicio'); return; }
             }
-            
             else if (partida.estado === 'dia') {
                 if (Object.keys(partida.votosDia).length >= partida.jugadores.filter(j => j.vivo).length) {
-                    const linchado = calcularMasVotado(partida.votosDia);
+                    const empatados = calcularMasVotado(partida.votosDia);
                     partida.mensajes = []; 
-                    procesarMuertes([linchado], 'noche_inicio', 'linchamiento'); // AÑADIDA ETIQUETA
+                    if (empatados.length === 1) {
+                        procesarMuertes(empatados, 'noche_inicio', 'linchamiento'); 
+                    } else {
+                        partida.mensajes.push("⚖️ El pueblo no ha logrado ponerse de acuerdo. Hay un empate y nadie es linchado hoy.");
+                        partida.estado = 'noche_inicio';
+                        avanzarFaseNoche('inicio');
+                    }
                 }
             }
         }

@@ -11,7 +11,6 @@
         .venganza { background-color: #7f1d1d; color: #fee2e2; }
         .fin { background-color: #1e3a8a; color: #ffffff; }
         
-        /* Fondos inmersivos por rol */
         .fondo-lobo { background-color: #450a0a; color: #fee2e2; }
         .fondo-vidente { background-color: #3b0764; color: #f3e8ff; }
         .fondo-bruja { background-color: #431407; color: #ffedd5; }
@@ -42,7 +41,7 @@
         <!-- Panel de Mensajes Globales -->
         <div id="mensajes-sistema" class="w-full bg-white bg-opacity-20 p-4 rounded mb-4 text-center font-semibold text-lg flex flex-col gap-2"></div>
 
-        <!-- Panel de Espera (Para saber de quién es el turno) -->
+        <!-- Panel de Espera -->
         <div id="panel-espera" class="w-full bg-blue-900 text-white p-4 rounded mb-4 hidden border-2 border-blue-500 shadow-lg text-center">
             <h3 class="font-bold text-lg mb-2">⏳ Turno en curso</h3>
             <p id="texto-espera" class="text-lg font-semibold text-blue-200"></p>
@@ -70,7 +69,7 @@
             <button id="btn-reiniciar" onclick="reiniciarPartida()" class="bg-black text-white px-8 py-3 rounded font-bold w-full hidden hover:bg-gray-800">Volver al Lobby (Nueva Partida)</button>
         </div>
 
-        <!-- NUEVO: Panel de Muerte -->
+        <!-- Panel de Muerte -->
         <div id="panel-muerto" class="w-full bg-red-900 text-white p-4 rounded mb-4 hidden border-2 border-red-500 shadow-lg text-center">
             <h3 class="font-bold text-xl mb-2 text-red-200">💀 Has muerto</h3>
             <p class="text-md">Ya no puedes hablar ni participar, pero puedes seguir observando el destino del pueblo en silencio.</p>
@@ -81,6 +80,17 @@
             <h3 class="font-bold text-lg mb-2">👁️ Visión Revelada</h3>
             <p id="texto-vision" class="text-xl font-bold text-yellow-300"></p>
             <button onclick="document.getElementById('panel-vision').classList.add('hidden')" class="mt-4 bg-blue-700 hover:bg-blue-500 text-white px-6 py-2 rounded font-bold shadow">Entendido</button>
+        </div>
+
+        <!-- Chat de Lobos -->
+        <div id="panel-chat-lobos" class="w-full bg-red-900 text-white p-4 rounded mb-4 hidden border-2 border-red-500 shadow-lg">
+            <h3 class="font-bold text-lg mb-2">🐺 Chat de la Manada</h3>
+            <div id="mensajes-lobos" class="bg-black bg-opacity-50 p-2 h-32 overflow-y-auto mb-2 text-sm flex flex-col gap-1 rounded"></div>
+            <div class="flex gap-2">
+                <input type="text" id="input-chat-lobos" class="flex-1 p-2 text-black rounded font-bold" placeholder="Escribe a tus aliados...">
+                <button onclick="enviarChatLobo()" class="bg-red-600 hover:bg-red-500 px-4 py-2 rounded font-bold shadow">Enviar</button>
+            </div>
+            <p class="text-xs text-red-300 mt-2">Poneos de acuerdo y haced clic en la misma víctima. No se avanzará hasta que el voto de todos los lobos coincida.</p>
         </div>
 
         <!-- Panel de Enamorados (Cupido) -->
@@ -117,6 +127,24 @@
             document.getElementById('pantalla-juego').classList.remove('hidden');
         }
 
+        function enviarChatLobo() {
+            const input = document.getElementById('input-chat-lobos');
+            if (input.value.trim() !== '') {
+                socket.emit('enviarChatLobo', input.value);
+                input.value = '';
+            }
+        }
+        
+        document.getElementById('input-chat-lobos').addEventListener('keypress', function (e) {
+            if (e.key === 'Enter') enviarChatLobo();
+        });
+
+        socket.on('nuevoChatLobo', (data) => {
+            const caja = document.getElementById('mensajes-lobos');
+            caja.innerHTML += `<div><span class="font-bold text-red-400">${data.nombre}:</span> ${data.msg}</div>`;
+            caja.scrollTop = caja.scrollHeight;
+        });
+
         function empezarPartida() {
             socket.emit('empezarPartida', {
                 lobos: parseInt(document.getElementById('c-lobos').value),
@@ -132,6 +160,11 @@
         }
 
         function toggleJugador(id) {
+            if (estadoActual === 'noche_lobos' && miRol === 'Lobo') {
+                socket.emit('accionLobos', id);
+                return;
+            }
+
             const maxSel = (estadoActual === 'noche_cupido' && miRol === 'Cupido') ? 2 : 1;
             
             if (seleccionados.includes(id)) {
@@ -154,7 +187,6 @@
             else if (estadoActual === 'venganza_cazador') socket.emit('accionCazador', seleccionados[0]);
             else if (estadoActual === 'noche_cupido') socket.emit('accionCupido', seleccionados);
             else if (estadoActual === 'noche_vidente') socket.emit('accionVidente', seleccionados[0]);
-            else if (estadoActual === 'noche_lobos') socket.emit('accionLobos', seleccionados[0]);
             else if (estadoActual === 'noche_bruja') {
                 socket.emit('accionBruja', {
                     curar: document.getElementById('bruja-curar').checked,
@@ -188,12 +220,12 @@
             p.mensajes.forEach(m => { let p = document.createElement('p'); p.innerText = m; mSys.appendChild(p); });
             if(p.mensajes.length === 0) mSys.innerText = "Esperando a otros jugadores...";
 
-            // Resetear visibilidad de paneles
             if (p.estado === 'dia' || p.estado === 'lobby' || p.estado === 'fin') {
                 document.getElementById('panel-vision').classList.add('hidden');
             }
             if (p.estado === 'lobby') {
                 document.getElementById('panel-amor').classList.add('hidden');
+                document.getElementById('mensajes-lobos').innerHTML = ''; 
             }
 
             document.getElementById('panel-admin').classList.add('hidden');
@@ -204,17 +236,16 @@
             document.getElementById('alerta-mi-turno').classList.add('hidden');
             document.getElementById('panel-espera').classList.add('hidden');
             document.getElementById('panel-muerto').classList.add('hidden');
+            document.getElementById('panel-chat-lobos').classList.add('hidden');
 
             if (yo) {
                 miRol = yo.rol;
                 document.getElementById('info-rol').innerText = `Tu rol: ${miRol} | ${yo.vivo ? 'VIVO' : 'MUERTO'}`;
                 
-                // Panel de muerte
                 if (!yo.vivo && p.estado !== 'lobby' && p.estado !== 'fin') {
                     document.getElementById('panel-muerto').classList.remove('hidden');
                 }
 
-                // Panel de amor
                 const msgAmor = document.getElementById('info-amor');
                 if (p.enamorados.includes(miId) && p.estado !== 'lobby') {
                     const parejaId = p.enamorados.find(id => id !== miId);
@@ -228,6 +259,7 @@
                     document.getElementById('panel-amor').classList.remove('hidden');
                 } else {
                     msgAmor.classList.add('hidden');
+                    document.getElementById('panel-amor').classList.add('hidden');
                 }
             }
 
@@ -237,7 +269,6 @@
             let fondoEspecial = null;
             let textoEspera = "";
             
-            // Determinar qué está pasando para el panel de los que están esperando
             if (p.estado === 'noche_cupido') textoEspera = "🏹 Cupido está lanzando sus flechas...";
             else if (p.estado === 'noche_vidente') textoEspera = "👁️ La Vidente está consultando su bola de cristal...";
             else if (p.estado === 'noche_lobos') textoEspera = "🐺 Los Lobos están acechando a su presa...";
@@ -249,9 +280,7 @@
             } 
             else if (p.estado === 'fin') {
                 document.getElementById('panel-fin').classList.remove('hidden');
-                if (p.jugadores[0]?.id === miId) {
-                    document.getElementById('btn-reiniciar').classList.remove('hidden');
-                }
+                if (p.jugadores[0]?.id === miId) document.getElementById('btn-reiniciar').classList.remove('hidden');
             }
             else if (yo) {
                 if (p.estado === 'venganza_cazador' && p.cazadorVengando === miId) { 
@@ -263,7 +292,8 @@
                 else if (yo.vivo) {
                     if (p.estado === 'dia') { 
                         esMiTurno = true; 
-                        mensajeTurno = "☀️ Votación pública: Selecciona a quién linchar."; 
+                        mensajeTurno = "☀️ Votación pública: Selecciona a quién linchar. Puedes cambiar tu voto antes del último."; 
+                        document.getElementById('btn-accion').classList.remove('hidden');
                     }
                     else if (p.estado === 'noche_cupido' && miRol === 'Cupido') { 
                         esMiTurno = true; 
@@ -280,9 +310,10 @@
                     }
                     else if (p.estado === 'noche_lobos' && miRol === 'Lobo') { 
                         esMiTurno = true; 
-                        mensajeTurno = "🐺 Lobo: Selecciona a quién devorar."; 
+                        mensajeTurno = "🐺 Tu Manada ataca: Poneos de acuerdo y votad."; 
                         fondoEspecial = "fondo-lobo";
                         claseBanner = "bg-red-600 border-red-800 text-white";
+                        document.getElementById('panel-chat-lobos').classList.remove('hidden');
                     }
                     else if (p.estado === 'noche_bruja' && miRol === 'Bruja') {
                         esMiTurno = true;
@@ -320,8 +351,39 @@
             p.jugadores.forEach(j => {
                 const div = document.createElement('div');
                 div.id = 'card-' + j.id;
-                div.className = `p-4 bg-white text-black border rounded shadow text-center font-bold transition-all ${!j.vivo ? 'muerto bg-gray-300' : ''}`;
-                div.innerText = j.nombre + (j.id === miId ? ' (Tú)' : '');
+                div.className = `p-4 bg-white text-black border rounded shadow text-center font-bold transition-all flex flex-col items-center justify-center relative ${!j.vivo ? 'muerto bg-gray-300' : ''}`;
+                div.innerHTML = `<span>${j.nombre}${j.id === miId ? ' (Tú)' : ''}</span>`;
+                
+                if (miRol === 'Lobo' && j.rol === 'Lobo' && j.vivo && j.id !== miId) {
+                    div.innerHTML += '<span class="text-xs text-red-700 bg-red-100 px-2 py-1 rounded mt-1">🐺 Aliado</span>';
+                }
+
+                if (p.estado === 'noche_lobos' && miRol === 'Lobo') {
+                    const votantesAqui = Object.entries(p.votosLobos)
+                                           .filter(([loboId, vicId]) => vicId === j.id)
+                                           .map(([loboId]) => p.jugadores.find(x => x.id === loboId)?.nombre);
+                    
+                    if (votantesAqui.length > 0) {
+                        div.innerHTML += `<div class="text-xs text-white mt-2 bg-red-600 px-2 py-1 rounded-full animate-pulse">🎯 Votos: ${votantesAqui.join(', ')}</div>`;
+                    }
+
+                    if (p.votosLobos[miId] === j.id) {
+                        div.classList.add('seleccionado');
+                        div.style.outlineColor = '#dc2626'; 
+                    }
+                }
+
+                // NUEVO: Mostrar los votos del día en vivo y el propio voto en amarillo
+                if (p.estado === 'dia') {
+                    const votantesAqui = Object.entries(p.votosDia).filter(([votanteId, vicId]) => vicId === j.id);
+                    if (votantesAqui.length > 0) {
+                        div.innerHTML += `<div class="text-xs text-black mt-2 bg-yellow-400 border border-yellow-600 px-2 py-1 rounded-full shadow font-bold">⚖️ Votos: ${votantesAqui.length}</div>`;
+                    }
+                    if (p.votosDia[miId] === j.id && !seleccionados.includes(j.id)) {
+                        div.classList.add('seleccionado');
+                        div.style.outlineColor = '#ca8a04'; 
+                    }
+                }
                 
                 if (esMiTurno && j.vivo) {
                     let puedeSeleccionar = true;
