@@ -41,7 +41,7 @@
         <!-- Panel de Mensajes Globales -->
         <div id="mensajes-sistema" class="w-full bg-white bg-opacity-20 p-4 rounded mb-4 text-center font-semibold text-lg flex flex-col gap-2"></div>
 
-        <!-- NUEVO: Chat Público (Día) -->
+        <!-- Chat Público (Día) -->
         <div id="panel-chat-publico" class="w-full bg-gray-200 text-black p-4 rounded mb-4 hidden border-2 border-gray-400 shadow-lg">
             <h3 class="font-bold text-lg mb-2">🗣️ Asamblea del Pueblo</h3>
             <div id="mensajes-publicos" class="bg-white p-2 h-32 overflow-y-auto mb-2 text-sm flex flex-col gap-1 rounded border border-gray-300"></div>
@@ -155,7 +155,6 @@
             caja.scrollTop = caja.scrollHeight;
         });
 
-        // NUEVO: Funciones de Chat Público
         function enviarChatPublico() {
             const input = document.getElementById('input-chat-publico');
             if (input.value.trim() !== '') {
@@ -307,10 +306,8 @@
                 }
             }
 
-            // NUEVO: Mostrar el panel de la Asamblea solo de día
             if (p.estado === 'dia') {
                 document.getElementById('panel-chat-publico').classList.remove('hidden');
-                // Los muertos solo leen, no escriben
                 if (yo && !yo.vivo) {
                     document.getElementById('input-chat-publico').disabled = true;
                     document.getElementById('input-chat-publico').placeholder = "Los muertos no pueden hablar...";
@@ -407,6 +404,7 @@
 
             const contenedor = document.getElementById('lista-jugadores');
             contenedor.innerHTML = '';
+            
             p.jugadores.forEach(j => {
                 const div = document.createElement('div');
                 div.id = 'card-' + j.id;
@@ -455,6 +453,31 @@
                 }
                 contenedor.appendChild(div);
             });
+
+            // NUEVO: Añadir la carta de "Votar en Blanco" al final de la lista durante el día
+            if (p.estado === 'dia') {
+                const divSkip = document.createElement('div');
+                divSkip.id = 'card-skip';
+                divSkip.className = `p-4 bg-gray-200 text-gray-700 border-2 border-dashed border-gray-400 rounded shadow text-center font-bold transition-all flex flex-col items-center justify-center relative ${(yo && !yo.vivo) ? 'muerto bg-gray-300' : ''}`;
+                divSkip.innerHTML = `<span>🕊️ Votar en Blanco</span>`;
+                
+                const votantesAqui = Object.entries(p.votosDia).filter(([votanteId, vicId]) => vicId === 'skip');
+                if (votantesAqui.length > 0) {
+                    divSkip.innerHTML += `<div class="text-xs text-black mt-2 bg-yellow-400 border border-yellow-600 px-2 py-1 rounded-full shadow font-bold">⚖️ Votos: ${votantesAqui.length}</div>`;
+                }
+                
+                if (p.votosDia[miId] === 'skip' && !seleccionados.includes('skip')) {
+                    divSkip.classList.add('seleccionado');
+                    divSkip.style.outlineColor = '#ca8a04'; 
+                }
+                
+                if (esMiTurno && yo && yo.vivo) {
+                    divSkip.classList.add('cursor-pointer', 'hover:bg-gray-300');
+                    divSkip.onclick = () => toggleJugador('skip');
+                }
+                
+                contenedor.appendChild(divSkip);
+            }
         });
     </script>
 </body>

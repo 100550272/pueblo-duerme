@@ -241,7 +241,6 @@ io.on('connection', (socket) => {
         }
     });
 
-    // NUEVO: Recepción de chat público para los vivos
     socket.on('enviarChatPublico', (msg) => {
         if (partida.estado !== 'dia') return;
         const autor = partida.jugadores.find(j => j.id === socket.id);
@@ -270,6 +269,7 @@ io.on('connection', (socket) => {
         procesarMuertes([id], partida.estadoSiguiente);
     });
 
+    // ACTUALIZADO: Detección del voto 'skip'
     socket.on('votarDia', (id) => {
         if (partida.estado !== 'dia') return;
         partida.votosDia[socket.id] = id;
@@ -279,7 +279,13 @@ io.on('connection', (socket) => {
             const empatados = calcularMasVotado(partida.votosDia);
             partida.mensajes = []; 
             if (empatados.length === 1) {
-                procesarMuertes(empatados, 'noche_inicio', 'linchamiento'); 
+                if (empatados[0] === 'skip') {
+                    partida.mensajes.push("🕊️ El pueblo ha decidido por mayoría saltar el linchamiento de hoy.");
+                    partida.estado = 'noche_inicio';
+                    avanzarFaseNoche('inicio');
+                } else {
+                    procesarMuertes(empatados, 'noche_inicio', 'linchamiento'); 
+                }
             } else {
                 partida.mensajes.push("⚖️ El pueblo no ha logrado ponerse de acuerdo. Hay un empate y nadie es linchado hoy.");
                 partida.estado = 'noche_inicio';
@@ -333,7 +339,13 @@ io.on('connection', (socket) => {
                     const empatados = calcularMasVotado(partida.votosDia);
                     partida.mensajes = []; 
                     if (empatados.length === 1) {
-                        procesarMuertes(empatados, 'noche_inicio', 'linchamiento'); 
+                        if (empatados[0] === 'skip') {
+                            partida.mensajes.push("🕊️ El pueblo ha decidido por mayoría saltar el linchamiento de hoy.");
+                            partida.estado = 'noche_inicio';
+                            avanzarFaseNoche('inicio');
+                        } else {
+                            procesarMuertes(empatados, 'noche_inicio', 'linchamiento'); 
+                        }
                     } else {
                         partida.mensajes.push("⚖️ El pueblo no ha logrado ponerse de acuerdo. Hay un empate y nadie es linchado hoy.");
                         partida.estado = 'noche_inicio';
